@@ -82,7 +82,7 @@ import {
 import type { EntryRow } from '@/data/types'
 
 const meta = moduleMeta('transformermaint')
-const columns = ["检修编号", "主变名称", "检修类别", "停电范围", "检修班组", "计划工期", "完成日期", "检修状态"]
+const columns = ["检修编号", "主变名称", "检修类别", "停电范围", "检修班组", "计划工期", "完成日期", "检修状态", "关联工作票号"]
 const actions = ["提交开工", "确认完工", "申请延期"]
 const statuses = ["待开工", "检修中", "已完工", "已延期"]
 const stats = [{"label": "待开工检修", "value": 0}, {"label": "检修中主变", "value": 0}, {"label": "本月完工数", "value": 0}]

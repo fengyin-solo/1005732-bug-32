@@ -27,11 +27,44 @@ function readStorage(): Record<string, EntryRow[]> {
   }
 }
 
+// 老版本数据里「已终结」工作票仍挂着 pending（终结不是最后一个状态，通用流转算错了），
+// 读到时顺手修正；许可状态列同样以状态机为准对齐，保证列表、详情、导出同源。
+function repairLegacyRows(entries: Record<string, EntryRow[]>): boolean {
+  const rows = entries['workpermit']
+  if (!rows) {
+    return false
+  }
+  let changed = false
+  for (const row of rows) {
+    const status = String(row.status)
+    if (status !== '待签发' && status !== '已许可' && status !== '已终结' && status !== '已作废') {
+      continue
+    }
+    const shouldPending = status === '待签发' || status === '已许可'
+    if (Boolean(row.pending) !== shouldPending) {
+      row.pending = shouldPending
+      changed = true
+    }
+    if (status === '已作废' && !Boolean(row.abnormal)) {
+      row.abnormal = true
+      changed = true
+    }
+    if (String(row['许可状态'] ?? '') !== status) {
+      row['许可状态'] = status
+      changed = true
+    }
+  }
+  return changed
+}
+
 let cache: Record<string, EntryRow[]> | null = null
 
 export function allRows(): Record<string, EntryRow[]> {
   if (cache === null) {
     cache = readStorage()
+    if (repairLegacyRows(cache) && typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(cache))
+    }
   }
   return cache
 }
