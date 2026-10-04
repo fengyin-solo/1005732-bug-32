@@ -1,6 +1,8 @@
 import { MODULE_BY_KEY } from '@/data/modules'
 import { allRows, listRows, resetRows, saveRows } from '@/data/local-store'
 import type { ActionResult, EntryRow, ModuleMeta, OverviewResult, PageResult } from '@/data/types'
+import { submitWorkpermitAction, WORKPERMIT_KEY } from '@/api/workpermit-service'
+import { useSessionStore } from '@/stores/session'
 
 // 会写进数据的「往回走」动作：命中就把这条记录标成异常态，看板上能一眼看出来。
 const NEGATIVE_ACTIONS = ['撤销', '作废', '拒绝', '驳回', '停用', '忽略', '下线', '回滚']
@@ -30,6 +32,11 @@ export function listEntries(key: string, filters: Record<string, string> = {}): 
 
 export function runAction(key: string, id: number, action: string): ActionResult {
   const meta = moduleMeta(key)
+  // 工作票走专用流程：越权拦截、字段必填、许可/终结时间统一口径、主变检修联动都在那边。
+  if (key === WORKPERMIT_KEY) {
+    const store = useSessionStore()
+    return submitWorkpermitAction(id, { action, role: store.role })
+  }
   const target = meta.actionTargets[action]
   if (!target) {
     return { ok: false, message: `${meta.entity}没有登记「${action}」这个动作` }
@@ -63,6 +70,16 @@ export function resetModule(key: string): PageResult {
 
 export function exportEntries(key: string): { filename: string; content: string } {
   const meta = moduleMeta(key)
+  if (key === WORKPERMIT_KEY) {
+    // 工作票清单与列表、详情抽屉读同一批字段：许可/终结时间照记录导出，绝不按签字时间另算。
+    const columns = ['工作票号', '工作任务', '所属变电站', '停电范围', '工作负责人', '许可时间', '终结时间']
+    const header = ['编号', ...columns, '当前状态']
+    const lines = [header.join(',')]
+    for (const row of listRows(key)) {
+      lines.push([row.id, ...columns.map((field) => row[field] ?? ''), row.status].join(','))
+    }
+    return { filename: `${meta.name}-清单.csv`, content: `﻿${lines.join('\n')}` }
+  }
   const header = ['编号', ...meta.fields, '当前状态']
   const lines = [header.join(',')]
   for (const row of listRows(key)) {
